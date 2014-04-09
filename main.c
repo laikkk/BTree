@@ -1,8 +1,14 @@
 /* 
  * File:   main.c
- * Author: kamil
+ * Author: Kamil Zieliński
  *
  * Created on 6 kwiecień 2014, 12:59
+ * Dodawanie kluczy do Bdrzewa i szukanie w Bdrzewie
+ * pomocne materiały:
+ * http://staff.ustc.edu.cn/~csli/graduate/algorithms/book6/chap19.htm
+ * http://ats.oka.nu/b-tree/b-tree.manual.html
+ * Sposób wywowałania:
+ * gcc main.c ;./a.out 
  */
 
 // struktura wezla B-drzewa i przyklad zapisu i odczytu na plik
@@ -141,11 +147,7 @@ int rekDrukujBDot(int r, int z, FILE *plikwy) {
     return nz;
 }// </editor-fold>
 
-//int mojOdczyt(){}
-//int mojZapis(int k){
-// fseek(drzewo, (long) i*rozmiarw, SEEK_SET);
-//    fwrite(w, rozmiarw, 1, drzewo);
-//}
+
 
 void zerujKluczeWezla(Wezel *w) {
     int i;
@@ -157,7 +159,7 @@ void zerujKluczeWezla(Wezel *w) {
 }
 
 void drukuj() {
-    int dl, i = 0,j;
+    int i = 0,j;
     Wezel w;
     for (i = 0; i < POZYCJAWPLIKU; i++) {
         odczytaj(i, &w);
@@ -171,15 +173,6 @@ void drukuj() {
         printf("[%d] %d ",j, w.c[j]);
         printf("\n\n");
     }
-//      int dl, i = 0;
-//    Wezel w;
-//    for (i = 0; i < POZYCJAWPLIKU; i++) {
-//        odczytaj(i, &w);
-//        printf("%d. WEZEL n = %d leaf = %d\n", i, w.n, w.leaf);
-//        printf("               klucze= [1] %d [2] %d [3] %d [4] %d [5] %d\n", w.k[1], w.k[2], w.k[3], w.k[4], w.k[5]);
-//        printf("wskazniki do synow= [1] %d [2] %d [3] %d [4] %d [5] %d [6] %d\n", w.c[1], w.c[2], w.c[3], w.c[4], w.c[5], w.c[6]);
-//        printf("\n\n");
-//    }
 }
 
 void drukujZawartoscWezla(Wezel *w) {
@@ -195,7 +188,6 @@ void BTreeSplitChild(
         int i, //index
         Wezel *y //Pęłny węzeł y (syn x)
         ) {
-    //static int pozycja = 0; // wolna pozycja w pliku
     Wezel z;
     zerujKluczeWezla(&z);
     z.leaf = y->leaf;
@@ -204,34 +196,29 @@ void BTreeSplitChild(
     for (j = 1; j <= T - 1; j++) { //?!?!adaptacja T-1 skrajnie prawych kluczy z wezla y do wezla Z
         z.k[j] = y->k[j + T ];
     }
-    //printf("Wezel z klucze= [0] %d [1] %d [2] %d [3] %d [4] %d\n", z.k[0], z.k[1], z.k[2], z.k[3], z.k[4]);
     //drukujZawartoscWezla(&z);
-    if (!y->leaf) { //?               //jezeli y był lisciem to przepisuj tez wskazniki do synow (pozycje w pliku 0,1,2..)
-        for (j = 1; j <= T; j++) { //j=0; //DO TRZETESTOWANIA POZNIEJ JAK DRZEWO BD WYSOKIE
+    if (!y->leaf) { //?               //jezeli y NIE był lisciem to przepisuj tez wskazniki do synow (pozycje w pliku 0,1,2..)
+        for (j = 1; j <= T; j++) { 
             z.c[j] = y->c[j + T];
         }
     }
-    drukujZawartoscWezla(&z);
+    //drukujZawartoscWezla(&z);
     y->n = T - 1; // - 1; //wezel y nie jest juz pełen
-    for (j = x->n + 1; j >= i + 1; j--) { //? przesuniecie wskaznikow do synow x'sa aby zrobic miejsce na nowy wskaznik do nowo przyjetego klucza z wezla y
+    for (j = x->n + 1; j >= i + 1; j--)  // przesuniecie wskaznikow do synow x'sa aby zrobic miejsce na nowy wskaznik do nowo przyjetego klucza z wezla y
         x->c[j + 1] = x->c[j];
-    }
-    //x.c[i + 1] = POZYCJAWPLIKU; //x.c[i+1]=z //mozliwy blad z zapisem pod ktory wiersz ma byc wpisany wezel z do pliku
-    x->c[i + 1] = POZYCJAWPLIKU; //raczej powinnoo byc 1 zamiast 2
+    
+    x->c[i + 1] = POZYCJAWPLIKU; // zapisem pod ktory wiersz ma byc wpisany wezel z do pliku
     z.pozycjaWDrzewie = POZYCJAWPLIKU; //zamiana
     zapisz(POZYCJAWPLIKU++, &z); //z wstawic na kolejna pozycje w pliku ktory bd synem x
     for (j = x->n; j >= i; j--) {
         x->k[j + 1] = x->k[j];
     }
-    //x->k[i]= y->k[T];
     x->k[i] = y->k[T]; //dodanie srodkowego klucza z wezla Y do węzła X 
-    x->n = x->n + 1;
-    //disk-write(y)   
-    //disk-write(x)
-    zapisz(y->pozycjaWDrzewie, y);
-    zapisz(x->pozycjaWDrzewie, x);
+    x->n = x->n + 1;        
+   zapisz(y->pozycjaWDrzewie, y);//disk-write(y)   
+    zapisz(x->pozycjaWDrzewie, x);//disk-write(x)
 }
-//!! TODO ustawiac pozycje na którym moja byc dodane wskaniki na nastepne wezly (wiersze)
+
 
 void BTreeInsertNonFull(
         Wezel *x, //musi byc Wezlem bo do niego? bd wstawionny nowy klucz k
@@ -239,36 +226,22 @@ void BTreeInsertNonFull(
         ) {
     int i = x->n; //ilosc kluczy w wezle x
     if (x->leaf) {
-        //int czyOdjelo=0;
-        while (i >= 1 && k < x->k[i]) {//k[i]
-            x->k[i + 1] = x->k[i]; //x->k[i+1]=x->k[i]
+        while (i >= 1 && k < x->k[i]) {
+            x->k[i + 1] = x->k[i]; 
             i = i - 1;
-            //czyOdjelo=1;
         }
-        // if(i >= 1 && czyOdjelo==0)i = i - 1;
-        // if( i >= 1 && k < x->k[i - 1]) x->k[i-1] = k;  else
-        x->k[i + 1] = k; //x->k[i+1]=k
-        x->n = x->n + 1;
-        //DiskWrite(x); //Zapisz zmiany (czyli dodanie klucza k)
-        zapisz(x->pozycjaWDrzewie, x);
+ 
+        x->k[i + 1] = k; 
+        x->n = x->n + 1;        
+        zapisz(x->pozycjaWDrzewie, x);//DiskWrite(x); //Zapisz zmiany (czyli dodanie klucza k)
     } else {
-
-        //drukuj();
-        while (i >= 1 && k < x->k[i]) { //x->k[i]
-            i = i - 1;
-        }
-
+        while (i >= 1 && k < x->k[i])
+            i = i - 1;       
         i = i + 1;
         Wezel tmp;
-        //        if(i==1)//Prawdopodobnie zle wybiera który wezel ma wczytac z pliku
-        //        odczytaj(x->c[i], &tmp); // wczytujemy wezel z numeru x.c[i]    
-        //        else 
-        // printf("Wstawiam k = %d Wczytuje nastepny wezel i=%d\n",k,i);
-        //drukujZawartoscWezla(x);
-
         odczytaj(x->c[i], &tmp);
         if (tmp.n == 2 * T - 1) {
-            BTreeSplitChild(x, i, &tmp); // na i-tej pozycji wstaw klucz z wezla  TMP
+            BTreeSplitChild(x, i, &tmp); // na i-tej pozycji wstaw wskaznik do wezla  TMP
             if (k > x->k[i])
                 i = i + 1;
         }
@@ -277,20 +250,19 @@ void BTreeInsertNonFull(
     }
 }
 
-void BTreeInsert(Wezel TT, int k) {
-    //r=root[T]?
+void BTreeInsert(Wezel TT, int k) {   
     Wezel r;
-    odczytaj(ROOT, &r);
-    if (r.n == (2 * T - 1)) { //mozliwy blad r.n jest pelne dla T=3 gdy jest r.n=4
-        Wezel s; //mozliwe allokacja pamieci; s ma zostac nowym korzeniem (jak dac mu roota?)
+    odczytaj(ROOT, &r); //r=root[T]?
+    if (r.n == (2 * T - 1)) { 
+        Wezel s; //mozliwe allokacja pamieci; s ma zostac nowym korzeniem 
         zerujKluczeWezla(&s);
         s.pozycjaWDrzewie = POZYCJAWPLIKU;
         ROOT = POZYCJAWPLIKU;
         s.leaf = 0;
         s.n = 0;
-        s.c[1] = r.pozycjaWDrzewie; //r;//podobna sytuacja jak wyzej, w s.c[1] ma byc numer wierszu w kótrym znajduje sie zapisana tam wartosc r
+        s.c[1] = r.pozycjaWDrzewie; //podobna sytuacja jak wyzej, w s.c[1] ma byc numer wierszu w kótrym znajduje sie zapisana tam wartosc r
         zapisz(POZYCJAWPLIKU++, &s);
-        BTreeSplitChild(&s, 1, &r); //test z 0
+        BTreeSplitChild(&s, 1, &r); 
         //wczytac ponownie S?
         //odczytaj(s.pozycjaWDrzewie,&s);
         BTreeInsertNonFull(&s, k); //te s nie wie o zmianach w f BTreeSplitChild
@@ -301,12 +273,10 @@ Wezel BTreeCreate() {
     Wezel x;
     x.leaf = 1;
     x.n = 0;
-    x.pozycjaWDrzewie = POZYCJAWPLIKU;
+    x.pozycjaWDrzewie = POZYCJAWPLIKU;   //root[T]=x
     zerujKluczeWezla(&x);
-    //DiskWrite(X)
-    //root[T]=x
     ROOT = POZYCJAWPLIKU;
-    zapisz(POZYCJAWPLIKU++, &x);
+    zapisz(POZYCJAWPLIKU++, &x);    //DiskWrite(X)
     return x;
 }
 
@@ -344,6 +314,8 @@ Wezel BTreeSearch(Wezel x, int k) {
 }
 
 int main() {
+    
+ // <editor-fold defaultstate="collapsed" desc="Kod z wersji podstawowej">
     //    int i;
     //    double sp;
     //    drzewo = fopen("bdrzewo.txt", "w+");
@@ -354,69 +326,14 @@ int main() {
     //    drukujB(root, 0);
     //    drukujBDot(root);
     //    fclose(drzewo);
+ // </editor-fold>
 
     drzewo = fopen("bdrzewo.txt", "w+");
     Wezel TT = BTreeCreate();
-    //    BTreeInsert(TT, 99);
-    //    printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
-    //    drukuj();
-    //    printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
-    //    BTreeInsert(TT, 1);
-    //    printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
-    //    drukuj();
-    //    printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
-    //    BTreeInsert(TT, 2);
-    //    printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
-    //    drukuj();
-    //    printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
-    //    BTreeInsert(TT, 3);
-    //    printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
-    //    drukuj();
-    //    printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
-    //    //drukujZawartoscPliku();
-    //    BTreeInsert(TT, 4); // do tego miejsca jest ok
-    //    printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
-    //    drukuj();
-    //    printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
-    //    BTreeInsert(TT, 5);
-    ////    printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
-    ////    drukuj();
-    ////    printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
-    //    BTreeInsert(TT, 6);
-    ////    printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
-    ////    drukuj();
-    ////    printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
-    //    BTreeInsert(TT, 7);
-    ////    printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
-    ////    drukuj();
-    ////    printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
-    //    BTreeInsert(TT, 8);
-    ////    printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
-    ////    drukuj();
-    ////    printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
-    //    BTreeInsert(TT, 100);
-    //    
-    //    BTreeInsert(TT, 10);
-
-    //drukujZawartoscPliku();
-    //    int i;
-    //    for(i=10;i>4;i--)
-    //        BTreeInsert(TT, i);
 
     int i;
-    for (i = 1; i < 27; i++)
+    for (i = 1; i < 27; i++) //i<11
         BTreeInsert(TT, i);
-
-    //    BTreeInsert(TT, 10);
-    //    BTreeInsert(TT, 9);
-    //    BTreeInsert(TT, 8);
-    //    BTreeInsert(TT, 7);
-    //    BTreeInsert(TT, 6);
-    //    BTreeInsert(TT, 5);
-    //     BTreeInsert(TT, 4);
-    //    BTreeInsert(TT, 3);
-    //    BTreeInsert(TT, 2);
-
 
     printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
     drukuj();
